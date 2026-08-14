@@ -18,6 +18,13 @@
     "六步", "先拍摄", "实验怎么做的",
   ];
 
+  let KB = {};
+  function setKnowledge(kb) { KB = kb || {}; }
+  function kb(key) {
+    const item = KB[key] || {};
+    return [item.text || "知识条目缺失。", item.chips || ["你能回答什么？"]];
+  }
+
   const fname = (p) => (p || "—").split(/[/\\]/).pop();
   const pct = (x) => (x == null ? "—" : `${Math.round(100 * x)}%`);
   const fmtG = (x) => (x == null ? "尚未回传" : `${Number(x).toFixed(2)} mN/m`);
@@ -44,9 +51,9 @@
       `门控放行 **${ctx.n_usable}** 张（usable ${pct(ctx.usable_rate)}），` +
       `过程可信度 **${Math.round(ctx.cred)}/100**（${ctx.cred_label || "未评价"}）。\n\n` +
       `${gtxt}\n\n` +
-      "我只做观察、选帧、轮廓门控和操作建议；表面张力由物理模型算，不由我预测。" +
-      "你可以问整套实验怎么做，也可以问这一批能不能算、轮廓怎么了、γ 是多少。";
-    return [text, ["整个实验流程是怎样的？", "有什么改进之处？", "老师会怎么问？", "表面张力是多少？"]];
+        "我只做观察、选帧、轮廓门控和操作建议；表面张力由物理模型算，不由我预测。" +
+        "可问：原理、误差、数据处理、界面指标、流程、改进、答辩、γ/YL/标定，或 `droplet_031`。";
+    return [text, ["本实验的原理是什么？", "现在的误差如何？", "数据处理怎么做？", "表面张力是多少？"]];
   }
 
   function overview(ctx) {
@@ -360,14 +367,15 @@
   function helpMenu(ctx) {
     const text =
       `当前批次：**${ctx.label}**。你可以这样问我：\n\n` +
-      "- 流程：整个实验怎么做、六步是什么\n" +
-      "- 本批：怎么样、usable/轮廓、状态分布、最佳帧、γ、YL、标定、Cred\n" +
-      "- 改进：有什么改进、为什么测不准、下一步做什么\n" +
-      "- 答辩：老师会怎么问、AI 算不算 γ、是不是作弊\n" +
-      "- 知识：Misak 原理、报告定稿数字、针规格/成本、25/30°C 怎么比\n" +
-      "- 单帧：直接说 `droplet_031`\n\n" +
+      "- **原理**：本实验原理、悬滴法、Misak/YL、几何量 De/Ds\n" +
+      "- **误差**：现在的误差如何、误差来源、不确定度/CV/bias/Cred 区别\n" +
+      "- **数据处理**：截帧、标定、AI 门控、MATLAB、全流程\n" +
+      "- **界面**：usable、Cred、γ、最佳帧、左侧指标什么意思\n" +
+      "- **本批**：怎么样、轮廓、状态、γ、YL、标定、下一步、改进\n" +
+      "- **答辩/报告**：老师会怎么问、定稿数字、硬件成本\n" +
+      "- **单帧**：`droplet_031`\n\n" +
       "我是规则助手，不调用大模型，也**不预测** γ。";
-    return [text, ["有什么改进之处？", "老师会怎么问？", "表面张力是多少？", "整个实验流程是怎样的？"]];
+    return [text, ["本实验的原理是什么？", "现在的误差如何？", "数据处理怎么做？", "界面上这些数是什么意思？"]];
   }
 
   function aiLimit() {
@@ -386,34 +394,121 @@
     return [text, ["轮廓门控过了吗？", "报告里的标准结果是多少？"]];
   }
 
+  function principle() { return kb("principle"); }
+  function dataProcessing() { return kb("data_processing"); }
+  function errorSources() { return kb("error_sources"); }
+  function geometryQ() { return kb("geometry"); }
+  function extractQ() { return kb("extract"); }
+  function matlabQ() { return kb("matlab"); }
+
+  function uiHelp(ctx) {
+    const [base, chips] = kb("ui_help");
+    const g = ctx.phys && ctx.phys.poly_median;
+    const text =
+      base +
+      `\n\n**当前批次快照**：${ctx.label}；usable ${ctx.n_usable}/${ctx.n}；` +
+      `Cred ${Math.round(ctx.cred)}；γ=${fmtG(g)}；最佳帧 \`${ctx.best || "—"}\`。`;
+    return [text, chips];
+  }
+
+  function errorAnalysis(ctx) {
+    const pst = ctx.phys || {};
+    const lines = [`**${ctx.label}** 的误差/对照，我按当批已回传量说明（不另算新的 γ）：`, ""];
+    if (pst.poly_median == null) {
+      lines.push("还没有物理回传中位数，无法谈与文献偏差或 CV。请先跑 MATLAB 并回传 JSON。");
+      lines.push("不过误差来源仍可先看：尺子、轮廓、密度温度、重复性——请问「误差来源有哪些」。");
+      return [lines.join("\n"), ["误差来源有哪些？", "数据处理怎么做？", "表面张力是多少？"]];
+    }
+    lines.push(`- 主值（Poly 中位）：**${fmtG(pst.poly_median)}**`);
+    if (pst.gamma_ref != null) {
+      const b = pst.bias;
+      if (b != null) {
+        lines.push(
+          `- 相对参考 ${Number(pst.gamma_ref).toFixed(2)} mN/m 的偏差：**${(100 * b).toFixed(2)}%**（对照用，**不是**不确定度 U）`
+        );
+      } else {
+        lines.push(`- 参考值约 ${Number(pst.gamma_ref).toFixed(2)} mN/m`);
+      }
+    } else {
+      lines.push("- 本批 JSON 未带 gamma_ref，文献对照请看报告定稿表。");
+    }
+    if (pst.poly_cv != null) {
+      lines.push(`- 重复性 CV：**${(100 * pst.poly_cv).toFixed(2)}%**（多帧分散，不是与文献差）`);
+    }
+    if (pst.yl_median != null) {
+      const rel = pst.rel_yl;
+      lines.push(
+        `- YL 中位 ${fmtG(pst.yl_median)}` +
+          (rel != null ? `，相对 Poly **${(100 * rel).toFixed(1)}%**` : "") +
+          (rel != null && rel > 0.12 ? "；已超约 12% 门槛则**不采信 YL**" : "")
+      );
+    }
+    if (pst.px2mm != null) {
+      lines.push(`- 尺度 px2mm = ${Number(pst.px2mm).toFixed(6)}（γ∝其平方，尺子错则整段平移）`);
+    }
+    lines.push(`- 过程 Cred = ${Math.round(ctx.cred)}/100（${ctx.cred_label || "未标注"}），不改 γ`);
+    lines.push(`- 门控 usable = ${ctx.n_usable}/${ctx.n}`);
+    lines.push(
+      "\n报告定稿里扩展不确定度 U 约百分之几量级（以报告表格为准），请勿把 bias、CV、Cred、U 四个量混成一句话叫“误差”。要系统清单请问「误差来源有哪些」。"
+    );
+    return [lines.join("\n"), ["误差来源有哪些？", "有什么改进之处？", "标定尺度对不对？", "报告里的标准结果是多少？"]];
+  }
+
+  function usableMeaning(ctx) {
+    const text =
+      `**usable** 表示轮廓/状态门控后允许进入物理计算的帧。当前 **${ctx.label}** 为 **${ctx.n_usable}/${ctx.n}**（${pct(ctx.usable_rate)}）。\n\n` +
+      "未 usable 常见原因：非准静态、脱落、空心轮廓、对称差、清晰度/针干扰等。usable=0 不要放宽门槛凑数；盐水若报告仍有 γ，须标明离线重算。";
+    return [text, ["为什么有的帧不能用？", "轮廓门控过了吗？", "我下一步该做什么？"]];
+  }
+
   function fallback(ctx) {
     return [
-      `我还没精确匹配到你的问法。当前是 **${ctx.label}**。\n\n可以直接问：改进之处、老师怎么问、报告数字、Misak 原理、标定、γ、YL、轮廓、下一步；或点帧名 \`droplet_031\`。也可以说「你能回答什么」。`,
-      ["你能回答什么？", "有什么改进之处？", "老师会怎么问？", "表面张力是多少？"],
+      `我还没精确匹配到你的问法。当前是 **${ctx.label}**。\n\n可直接问：\n- 原理 / 悬滴法 / Misak / YL\n- 现在的误差如何 / 误差来源 / 不确定度\n- 数据处理 / 截帧 / MATLAB / 标定\n- 界面上 usable、Cred、γ、最佳帧是什么意思\n- 改进、答辩、报告数字、下一步；或 \`droplet_031\``,
+      ["本实验的原理是什么？", "现在的误差如何？", "数据处理怎么做？", "界面上这些数是什么意思？"],
     ];
   }
 
   function bestRule(q) {
     const ql = q.toLowerCase();
-    if (PIPELINE_KEYS.some((k) => q.includes(k)) || (q.includes("流程") && !q.includes("下一步"))) return "workflow";
+    if (
+      PIPELINE_KEYS.some((k) => q.includes(k)) ||
+      (q.includes("流程") && !q.includes("下一步") && !q.includes("处理"))
+    ) {
+      return "workflow";
+    }
     if (/(γ|gamma|表面张力).{0,6}多少|多少.{0,4}(γ|mN)/i.test(q)) return "gamma";
+    if (["原理", "悬滴法", "理论基础", "物理图像", "为什么能测"].some((k) => q.includes(k))) return "principle";
+    if (["误差来源", "不确定度来源", "误差有哪些", "误差因素"].some((k) => q.includes(k))) return "errsrc";
+    if (["误差", "偏差如何", "准不准", "不确定度", "精度如何", "现在的误差"].some((k) => q.includes(k))) return "error";
+    if (["数据处理", "怎么处理", "如何处理", "处理流程", "算法流程", "分析流程"].some((k) => q.includes(k))) return "dataproc";
+    if (["界面", "截图", "左侧", "这些数", "显示的是", "工作台"].some((k) => q.includes(k))) return "ui";
+
     const table = [
       [1, ["你是谁", "你做什么", "ai做什么", "你是什么"], "who"],
       [1, ["你能回答", "能问什么", "会什么", "有哪些问题", "可以问"], "help"],
+      [1, ["原理", "悬滴法", "理论基础", "物理图像"], "principle"],
+      [1, ["误差来源", "误差因素", "不确定度来源"], "errsrc"],
+      [1, ["误差", "偏差", "不确定度", "准不准", "精度如何"], "error"],
+      [1, ["数据处理", "怎么处理", "处理流程", "算法流程"], "dataproc"],
+      [1, ["界面", "截图", "左侧指标", "这些数", "工作台", "usable是什么", "usable 是"], "ui"],
       [2, ["改进", "优化", "不足", "怎么更好", "如何提高", "精度不够", "泛化"], "improve"],
       [2, ["老师会问", "答辩", "评委", "会怎么问", "高频问", "是不是作弊", "人为修正"], "defense"],
       [2, ["测不准", "为什么错", "乱跳", "偏大", "偏小", "273", "300", "失败模式"], "fail"],
+      [2, ["截帧", "滴落检测", "roi", "取帧", "extract"], "extract"],
+      [2, ["matlab", "物理反演", "xlsx", "批处理脚本"], "matlab"],
+      [2, ["de", "ds", "形状因子", "几何量", "赤道"], "geometry"],
       [3, ["yl", "young", "laplace", "差这么多", "相差", "为什么差"], "yl"],
-      [3, ["misak", "andreas", "形状因子", "poly原理", "公式", "怎么算的"], "poly"],
+      [3, ["misak", "andreas", "poly原理", "公式", "怎么算的", "h(s)"], "poly"],
       [3, ["大模型", "神经网络", "cnn", "深度学习", "预测γ", "ai预测"], "ailimit"],
       [4, ["表面张力", "gamma", "γ", "主值", "poly中位"], "gamma"],
       [4, ["报告", "定稿", "标准结果", "71.78", "25.03", "72.21"], "report"],
       [4, ["盐水", "生理盐水", "usable=0", "离线重算"], "saline"],
+      [4, ["usable", "可用帧"], "usable"],
       [5, ["标定", "尺度", "px2mm", "针径", "尺子"], "scale"],
       [5, ["17g", "针头", "硬件", "成本", "器材", "1634"], "hardware"],
       [5, ["温度", "25度", "30度", "25°", "30°", "升温"], "temp"],
       [6, ["可信度", "cred", "靠谱", "准确度"], "cred"],
-      [6, ["轮廓", "门控", "usable", "拦住", "否决", "不能用", "异常帧"], "contour"],
+      [6, ["轮廓", "门控", "拦住", "否决", "不能用", "异常帧"], "contour"],
       [7, ["准静态", "生长阶段", "脱落", "状态分布"], "states"],
       [8, ["下一步", "怎么办", "建议我", "检查清单", "接下来"], "advice"],
       [9, ["怎么样", "这次结果", "概况", "总结一下"], "overview"],
@@ -436,9 +531,14 @@
     workflow, who, gamma, yl: yl_q, scale: scale_q, cred: credibility,
     contour, states, advice, overview, greet, improve, hardware, report: reportNumbers,
     defense, poly: polyExplain, fail: failureModes, temp: temperatureQ, help: helpMenu,
-    ailimit: aiLimit, saline: salineNote,
+    ailimit: aiLimit, saline: salineNote, principle, dataproc: dataProcessing, errsrc: errorSources,
+    error: errorAnalysis, ui: uiHelp, geometry: geometryQ, extract: extractQ, matlab: matlabQ,
+    usable: usableMeaning,
   };
-  const NO_CTX = new Set(["who", "hardware", "report", "defense", "poly", "ailimit"]);
+  const NO_CTX = new Set([
+    "who", "hardware", "report", "defense", "poly", "ailimit",
+    "principle", "dataproc", "errsrc", "geometry", "extract", "matlab",
+  ]);
 
   function reply(message, ctx) {
     const q = String(message || "").trim();
@@ -464,5 +564,5 @@
     return { text, suggestions };
   }
 
-  global.XuandiAgent = { reply };
+  global.XuandiAgent = { reply, setKnowledge };
 })(window);

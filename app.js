@@ -188,6 +188,14 @@ $("copy-lan").addEventListener("click", async () => {
 });
 
 (async function init() {
+  try {
+    const kb = await fetch("./knowledge.json").then((r) => r.json());
+    if (window.XuandiAgent && window.XuandiAgent.setKnowledge) {
+      window.XuandiAgent.setKnowledge(kb);
+    }
+  } catch {
+    /* knowledge optional for local file open */
+  }
   const meta = await fetch("./data/experiments.json").then((r) => r.json());
   catalog = meta.items || [];
   if (meta.public) shareUrl = String(meta.public).replace(/\/?$/, "/");
