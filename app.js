@@ -190,7 +190,7 @@ $("copy-lan").addEventListener("click", async () => {
 (async function init() {
   const meta = await fetch("./data/experiments.json").then((r) => r.json());
   catalog = meta.items || [];
-  if (meta.public) shareUrl = meta.public.replace(/\/$/, "/") ;
+  if (meta.public) shareUrl = String(meta.public).replace(/\/?$/, "/");
   else shareUrl = location.href.split("#")[0];
   const box = $("share");
   const code = $("url-lan");

@@ -46,7 +46,7 @@
       `${gtxt}\n\n` +
       "我只做观察、选帧、轮廓门控和操作建议；表面张力由物理模型算，不由我预测。" +
       "你可以问整套实验怎么做，也可以问这一批能不能算、轮廓怎么了、γ 是多少。";
-    return [text, ["整个实验流程是怎样的？", "这次结果怎么样？", "为什么有的帧不能用？", "表面张力是多少？"]];
+    return [text, ["整个实验流程是怎样的？", "有什么改进之处？", "老师会怎么问？", "表面张力是多少？"]];
   }
 
   function overview(ctx) {
@@ -267,14 +267,129 @@
       "我是这个实验里的**智能实验助手**，不是用来回归表面张力的模型。\n\n" +
       "我会：认生长/准静态/脱落、给选帧分、评轮廓并一票否决、诊断异常、给操作建议、在 MATLAB 算完后复核 Poly 与 YL 是否差过 12%。\n\n" +
       "我不会：直接输出 γ、用文献值反推标定、在空心轮廓上放行充数。";
-    return [text, ["整个实验流程是怎样的？", "这次结果怎么样？"]];
+    return [text, ["整个实验流程是怎样的？", "有什么改进之处？", "老师会怎么问？"]];
+  }
+
+  function improve(ctx) {
+    const pst = ctx.phys || {};
+    const lines = [
+      `针对 **${ctx.label}**，可改进方向按优先级：`,
+      "",
+      "1. **尺子（影响最大）** γ∝(px2mm)²。确认分析图宽与标定 JSON 一致，三种液体不串用标定。",
+      "2. **拍摄与分割** 用亮场原图；保证针+整滴在 ROI；空心轮廓靠填洞+切针，不要放宽门控凑 usable。",
+      "3. **选帧** 正式算 γ 只用「准静态且 usable」；脱落帧应拦截。",
+      "4. **双模型** 主值永远是 Andreas–Misak（Poly）；YL 仅校验，差过约 12% 就丢掉，不要平均。",
+      "5. **温度对比** 25/30°C 分目录、分 xlsx，禁止两温度共用一批图。",
+    ];
+    if (ctx.n_usable === 0) lines.push("\n这批 usable=0：优先改善背光均匀与针/滴完整入画，而不是改门槛。");
+    else if (ctx.usable_rate < 0.5) lines.push(`\n这批 usable 仅 ${pct(ctx.usable_rate)}：先看脱落是否该拦、轮廓是否空心。`);
+    if (pst.rel_yl != null && pst.rel_yl > 0.12) lines.push("\n这批 YL 与 Poly 差过 12%：属亮场空心轮廓常见现象，改进在分割/光路，不是改公式硬凑。");
+    if (pst.poly_median == null) lines.push("\n还没有物理回传：先跑通 MATLAB 再谈数值改进。");
+    lines.push("\n**不要做的事**：用文献 γ 反推标定、放宽 solidity/fill 门槛、把 Cred/bias 当成准确度、给 AI 直接预测 γ。");
+    return [lines.join("\n"), ["我下一步该做什么？", "标定尺度对不对？", "老师会怎么问？"]];
+  }
+
+  function hardware() {
+    const text =
+      "本实验硬件口径（报告保持一致）：\n\n" +
+      "- 针：17G，外径 **1.47 mm**（标定尺子）\n" +
+      "- 成像：亮场；针与整滴需拍全\n" +
+      "- 成本量级约 **1634 元**（以报告为准）\n" +
+      "- AI 侧否决率约 40%；乙醇脱落拦截示例 10/10\n\n" +
+      "换针规格必须重标定；不能拿 1 cm 尺子随便标完就去算 γ。";
+    return [text, ["标定尺度对不对？", "整个实验流程是怎样的？"]];
+  }
+
+  function reportNumbers() {
+    const text =
+      "报告对外数字请保持一致（勿与旧 xlsx 混用）：\n\n" +
+      "- 纯水：γ = **71.78** mN/m（约 +0.82%，CV 5.31%，U≈5.44）\n" +
+      "- 乙醇水溶液（75%）：γ = **25.03** mN/m（约 −1.84%，CV 2.10%）\n" +
+      "- 生理盐水：γ = **72.21** mN/m（约 +1.13%；若 usable=0% 须写明为离线重算）\n" +
+      "- Cred 示例约 92 / 81 / 61（过程分，不是准确度）\n\n" +
+      "左侧批次若显示当前 JSON 的中位数，以当前批次回传为准；写报告时用上面定稿表。";
+    return [text, ["表面张力是多少？", "可信度为什么不是 90 分？"]];
+  }
+
+  function defense() {
+    const text =
+      "答辩高频问答口径：\n\n" +
+      "**Q：AI 怎么算表面张力？**\nA：不算。AI 观察/选帧/门控；γ 由 Andreas–Misak 算。\n\n" +
+      "**Q：YL 差一半是不是失败？**\nA：亮场空心轮廓时常见。相对差 >12% 丢 YL，主值仍用 Poly。\n\n" +
+      "**Q：Cred 92 是不是很准？**\nA：不是。Cred 是过程质量；精度看 U、CV 与文献偏差。\n\n" +
+      "**Q：是不是用标准值修正作弊？**\nA：禁止用文献 γ 反推 px2mm。尺子来自针径物理标定。\n\n" +
+      "**Q：usable=0 怎么办？**\nA：不放宽门槛。可离线复算，但报告必须写明门控否决。\n\n" +
+      "**Q：为什么三种液体标定不能共用？**\nA：ROI/图宽/成像几何可能不同，γ 对尺度平方敏感。";
+    return [text, ["有什么改进之处？", "YL 为什么差这么多？"]];
+  }
+
+  function polyExplain() {
+    const text =
+      "Andreas–Misak（程序里 Poly）在做什么：\n\n" +
+      "1. 从轮廓取最大直径 **De**，以及顶点到 De 平面的距离 **Ds**\n" +
+      "2. 形状因子 **S = Ds/De**\n" +
+      "3. 用多项式近似得到 1/H(S)，再算 γ = Δρ g De² / H\n\n" +
+      "它只依赖两个几何量，对空心亮场仍较稳。Young–Laplace 要拟合整条轮廓，亮场空壳+针时容易漂。所以本实验：**Poly 出主值，YL 只校验**。";
+    return [text, ["YL 为什么差这么多？", "表面张力是多少？"]];
+  }
+
+  function failureModes(ctx) {
+    const text =
+      "结果乱跳时，优先查这些（多数不是 Misak 公式错了）：\n\n" +
+      "- **γ 变成 270+/300+**：px2mm 标大了约一倍，或串用了其他液体标定（γ∝尺度²）\n" +
+      "- **水变成约 61**：图宽与标定宽不一致（例如 812 vs 406）再被尺度守卫压偏\n" +
+      "- **77～80 偏高**：针被算进轮廓，或温度参考用错\n" +
+      "- **25°C 与 30°C 小数完全一样**：读了同一批结果/修正过度\n" +
+      "- **usable 很低**：空心轮廓、针连滴、脱落帧未拦\n\n" +
+      `当前批次 **${ctx.label}**：usable ${ctx.n_usable}/${ctx.n}，Cred ${Math.round(ctx.cred)}。` +
+      "要针对本批改，请问「我下一步该做什么」或「有什么改进之处」。";
+    return [text, ["有什么改进之处？", "标定尺度对不对？"]];
+  }
+
+  function temperatureQ(ctx) {
+    const text =
+      "温度对比规则：\n\n" +
+      "- 目录：`water_vedio\\25` 与 `\\30`，酒精/盐水同理\n" +
+      "- 结果文件：`droplet_results_T25.xlsx` / `T30.xlsx`，禁止混用\n" +
+      "- 物理上温度升高，表面张力一般**下降**\n" +
+      "- 每种液体用自己的标定 JSON\n\n" +
+      `你现在打开的是 **${ctx.label}**。换温度请在左侧改批次，不要把另一温度的图丢进当前目录。`;
+    return [text, ["报告里的标准结果是多少？", "这次结果怎么样？"]];
+  }
+
+  function helpMenu(ctx) {
+    const text =
+      `当前批次：**${ctx.label}**。你可以这样问我：\n\n` +
+      "- 流程：整个实验怎么做、六步是什么\n" +
+      "- 本批：怎么样、usable/轮廓、状态分布、最佳帧、γ、YL、标定、Cred\n" +
+      "- 改进：有什么改进、为什么测不准、下一步做什么\n" +
+      "- 答辩：老师会怎么问、AI 算不算 γ、是不是作弊\n" +
+      "- 知识：Misak 原理、报告定稿数字、针规格/成本、25/30°C 怎么比\n" +
+      "- 单帧：直接说 `droplet_031`\n\n" +
+      "我是规则助手，不调用大模型，也**不预测** γ。";
+    return [text, ["有什么改进之处？", "老师会怎么问？", "表面张力是多少？", "整个实验流程是怎样的？"]];
+  }
+
+  function aiLimit() {
+    const text =
+      "关于「再加大模型/神经网络让 γ 更准」：\n\n" +
+      "本作品口径是 **AI 管过程，物理模型管数值**。用网络去拟合文献 γ，或拿 ADSA 自己当标签训练，评委容易认为循环论证/黑箱凑数。\n\n" +
+      "该做的智能化：状态识别、选帧、轮廓门控、异常诊断、对话解释。不该做的：AI 直接输出 γ、用标准值反推标定。";
+    return [text, ["老师会怎么问？", "有什么改进之处？"]];
+  }
+
+  function salineNote(ctx) {
+    const text =
+      "生理盐水特别提醒：若助手门控 **usable=0%**，报告里的 γ=72.21 属于**离线重算**，不是助手放行后的结果，必须写清楚。\n\n" +
+      "不要为了出数放宽轮廓门槛。" +
+      `当前打开的是 **${ctx.label}**（usable ${ctx.n_usable}/${ctx.n}）。`;
+    return [text, ["轮廓门控过了吗？", "报告里的标准结果是多少？"]];
   }
 
   function fallback(ctx) {
     return [
-      "我可以讲**整套实验步骤**，也可以讲**这一批已经算过的结果**。例如：流程怎么走、能不能算、哪帧被拦、γ 多少、YL 为啥差。也可以点帧名，如 `droplet_031`。\n\n" +
-        `当前目录：${ctx.label}。`,
-      ["整个实验流程是怎样的？", "这次结果怎么样？", "表面张力是多少？", "我下一步该做什么？"],
+      `我还没精确匹配到你的问法。当前是 **${ctx.label}**。\n\n可以直接问：改进之处、老师怎么问、报告数字、Misak 原理、标定、γ、YL、轮廓、下一步；或点帧名 \`droplet_031\`。也可以说「你能回答什么」。`,
+      ["你能回答什么？", "有什么改进之处？", "老师会怎么问？", "表面张力是多少？"],
     ];
   }
 
@@ -284,10 +399,20 @@
     if (/(γ|gamma|表面张力).{0,6}多少|多少.{0,4}(γ|mN)/i.test(q)) return "gamma";
     const table = [
       [1, ["你是谁", "你做什么", "ai做什么", "你是什么"], "who"],
-      [2, ["yl", "young", "laplace", "差这么多", "相差", "为什么差"], "yl"],
-      [3, ["表面张力", "gamma", "γ", "主值", "misak", "poly中位"], "gamma"],
-      [4, ["标定", "尺度", "px2mm", "针径", "尺子"], "scale"],
-      [5, ["可信度", "cred", "靠谱"], "cred"],
+      [1, ["你能回答", "能问什么", "会什么", "有哪些问题", "可以问"], "help"],
+      [2, ["改进", "优化", "不足", "怎么更好", "如何提高", "精度不够", "泛化"], "improve"],
+      [2, ["老师会问", "答辩", "评委", "会怎么问", "高频问", "是不是作弊", "人为修正"], "defense"],
+      [2, ["测不准", "为什么错", "乱跳", "偏大", "偏小", "273", "300", "失败模式"], "fail"],
+      [3, ["yl", "young", "laplace", "差这么多", "相差", "为什么差"], "yl"],
+      [3, ["misak", "andreas", "形状因子", "poly原理", "公式", "怎么算的"], "poly"],
+      [3, ["大模型", "神经网络", "cnn", "深度学习", "预测γ", "ai预测"], "ailimit"],
+      [4, ["表面张力", "gamma", "γ", "主值", "poly中位"], "gamma"],
+      [4, ["报告", "定稿", "标准结果", "71.78", "25.03", "72.21"], "report"],
+      [4, ["盐水", "生理盐水", "usable=0", "离线重算"], "saline"],
+      [5, ["标定", "尺度", "px2mm", "针径", "尺子"], "scale"],
+      [5, ["17g", "针头", "硬件", "成本", "器材", "1634"], "hardware"],
+      [5, ["温度", "25度", "30度", "25°", "30°", "升温"], "temp"],
+      [6, ["可信度", "cred", "靠谱", "准确度"], "cred"],
       [6, ["轮廓", "门控", "usable", "拦住", "否决", "不能用", "异常帧"], "contour"],
       [7, ["准静态", "生长阶段", "脱落", "状态分布"], "states"],
       [8, ["下一步", "怎么办", "建议我", "检查清单", "接下来"], "advice"],
@@ -309,8 +434,11 @@
 
   const FNS = {
     workflow, who, gamma, yl: yl_q, scale: scale_q, cred: credibility,
-    contour, states, advice, overview, greet,
+    contour, states, advice, overview, greet, improve, hardware, report: reportNumbers,
+    defense, poly: polyExplain, fail: failureModes, temp: temperatureQ, help: helpMenu,
+    ailimit: aiLimit, saline: salineNote,
   };
+  const NO_CTX = new Set(["who", "hardware", "report", "defense", "poly", "ailimit"]);
 
   function reply(message, ctx) {
     const q = String(message || "").trim();
@@ -319,7 +447,7 @@
       return { text, suggestions };
     }
     const fn = bestRule(q);
-    if (fn === "workflow" || fn === "who") {
+    if (fn === "workflow" || NO_CTX.has(fn)) {
       const [text, suggestions] = FNS[fn](ctx);
       return { text, suggestions };
     }
