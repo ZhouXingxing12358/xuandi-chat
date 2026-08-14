@@ -257,8 +257,14 @@ function applyRealMetrics(ctx, item) {
   el.sidebarExperimentName.textContent = ctx.label;
   el.sidebarExperimentDetail.textContent =
     `usable ${ctx.n_usable}/${ctx.n}` + (gamma != null ? ` · γ ${Number(gamma).toFixed(2)}` : " · γ 未回传");
-  el.sidebarStateTag.textContent = ctx.physics || gamma != null ? "REAL" : "PROCESS";
-  el.experimentModeBadge.textContent = "真实批次";
+  el.sidebarStateTag.textContent =
+    ctx.n_usable === 0 && gamma != null
+      ? "OFFLINE"
+      : ctx.physics || gamma != null
+        ? "REAL"
+        : "PROCESS";
+  el.experimentModeBadge.textContent =
+    ctx.n_usable === 0 && gamma != null ? "门控未放行 · 离线复算" : "真实批次";
   el.clearExperimentButton.hidden = false;
   el.assistantStatus.innerHTML = '<span aria-hidden="true"></span>规则引擎 · 当批 JSON';
   el.suggestionModeTag.textContent = "当批规则检索";
@@ -266,11 +272,20 @@ function applyRealMetrics(ctx, item) {
   el.localWatermark.hidden = true;
   el.primaryDemoTag.hidden = true;
   el.canvasStatus.textContent = ctx.best || "已载入";
-  el.resultsDataTag.textContent = "实测回传";
+  if (ctx.n_usable === 0 && gamma != null) {
+    el.resultsDataTag.textContent = "离线复算";
+    el.primaryDemoTag.hidden = false;
+    el.primaryDemoTag.textContent = "门控未放行";
+  } else {
+    el.resultsDataTag.textContent = "实测回传";
+  }
   el.parametersDataTag.textContent = "批次参数";
 
   el.surfaceTensionValue.textContent = gamma != null ? Number(gamma).toFixed(2) : "未回传";
-  el.surfaceTensionNote.textContent = "Andreas–Misak（Poly）中位；YL 仅校验";
+  el.surfaceTensionNote.textContent =
+    ctx.n_usable === 0 && gamma != null
+      ? "Poly 中位（离线复算）；本批 usable=0，非正式放行主结果"
+      : "Andreas–Misak（Poly）中位；YL 仅校验";
   el.confidenceValue.textContent = ctx.cred != null ? String(Math.round(ctx.cred)) : "--";
   el.residualValue.textContent = ctx.n ? `${ctx.n_usable}/${ctx.n}` : "--";
   el.symmetryValue.textContent = sym != null ? `${sym.toFixed(1)}%` : "--";
