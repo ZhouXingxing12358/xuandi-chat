@@ -41,6 +41,6 @@
       "best_image": "./img/salt_vedio__30__droplet_001_t0040.13s_drop0041.13s.png"
     }
   ],
-  "public": "",
-  "note": "部署到 GitHub Pages 后地址自动为当前站点；自定义域名可在此填 https://xuandi-chat.ai"
+  "public": "https://xuandi-chat.ai/",
+  "note": "自定义域名；DNS 未生效前可用 https://ZhouXingxing12358.github.io/xuandi-chat/"
 }
