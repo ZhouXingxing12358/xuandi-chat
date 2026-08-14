@@ -1,7 +1,7 @@
 "use strict";
 
 /** Bust GitHub Pages / browser cache when batch JSON or UI changes. */
-const ASSET_V = "20260814c";
+const ASSET_V = "20260814d";
 const withV = (url) => {
   const u = String(url || "");
   if (!u || u.startsWith("blob:") || u.startsWith("data:")) return u;

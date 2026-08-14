@@ -175,23 +175,251 @@
         lines.push("超过约 12% 的门槛，**不采信 YL**，主值仍用 Poly。亮场空心轮廓时 YL 差一倍是预期现象，不要把两个数平均。");
       }
     }
-    lines.push("\nAI 到此为止：我只转述物理模型已经算出来的数。");
-    return [lines.join("\n"), ["YL 为什么差这么多？", "标定尺度对不对？"]];
+    lines.push("\n" + sourceFooter("software+interpretation"));
+    return [lines.join("\n"), ["YL数值是多少？", "重复性CV是多少？", "标定尺度对不对？"]];
+  }
+
+  function sourceFooter(kind) {
+    const mapping = {
+      software: "【来源】软件已回传计算结果（转述）。",
+      interpretation: "【来源】业务解读（基于规则与当批状态，不是新算 γ）。",
+      model: "【来源】模型推演（物理关系说明，不是本批新测值）。",
+      external: "【来源】外部公开/定稿参考常数（不是当前样品实测）。",
+      "software+interpretation": "【来源】软件计算结果 + 业务解读。",
+      "interpretation+model": "【来源】业务解读 + 模型推演。",
+    };
+    return mapping[kind] || "【来源】混合说明，可追问细分。";
   }
 
   function yl_q(ctx) {
     const pst = ctx.phys || {};
-    let text =
-      "Andreas–Misak 只吃两个直径 De、Ds；Young–Laplace 要拟合**整条轮廓**。" +
-      "透明亮场若只留下暗缘空壳和针杆，YL 会漂到另一条形状上，γ 可以差到一半。" +
-      "程序约定：相对偏差超过约 **12%** 就判 YL 失败，回退 Poly。\n";
-    if (pst.poly_median != null && pst.yl_median != null) {
-      const rel = pst.rel_yl;
-      text +=
-        `\n这批 Poly 中位 ${fmtG(pst.poly_median)}，YL 中位 ${fmtG(pst.yl_median)}` +
-        (rel != null ? `，相对差 ${Math.round(100 * rel)}%。` : "。");
+    const cons = ctx.consistency || {};
+    const lines = [];
+    if (pst.yl_median != null) {
+      lines.push(`**直接回答**：本批 Young–Laplace 中位 γ = **${fmtG(pst.yl_median)}**。`);
+      if (pst.poly_median != null) lines.push(`对照：Andreas–Misak（Poly）中位 = **${fmtG(pst.poly_median)}**。`);
+      if (pst.rel_yl != null) {
+        lines.push(`相对差 |YL−Poly|/Poly ≈ **${Math.round(100 * pst.rel_yl)}%**。`);
+        if (pst.rel_yl > 0.12) lines.push("已超过约 12% 一致性门槛 → **不采信 YL 作主值**，报告主值用 Poly。");
+      }
+      lines.push("");
+    } else if (cons.gamma_yl != null) {
+      lines.push(`**直接回答**：报告一致性里的 YL = **${fmtG(cons.gamma_yl)}**。`, "");
+    } else {
+      lines.push("**直接回答**：本批尚未回传可用的 Young–Laplace 数值。", "");
     }
-    return [text, ["表面张力是多少？", "轮廓门控过了吗？"]];
+    lines.push(
+      "【业务解读】Andreas–Misak 只吃 De、Ds；YL 要拟合**整条轮廓**。" +
+        "透明亮场若只剩暗缘空壳+针杆，YL 会漂到错误外形，γ 可差到约一半。" +
+        "程序约定：相对差超过约 **12%** 判 YL 失败，回退 Poly。不要把两数平均。"
+    );
+    lines.push(sourceFooter("software+interpretation"));
+    return [lines.join("\n"), ["Poly和YL该信哪个？", "为什么偏差这么大？", "表面张力是多少？"]];
+  }
+
+  function cv_value(ctx) {
+    const pst = ctx.phys || {};
+    const cv = pst.poly_cv;
+    let text;
+    if (cv == null) {
+      text =
+        `**直接回答**：当前批次 **${ctx.label}** 还没有可计算的重复性 CV` +
+        "（需要物理 JSON 里 ≥2 个有效 Poly γ）。\n\n" +
+        "CV = 多帧 Poly 的标准差/均值，表示**重复性分散**，不是与文献的偏差。";
+    } else {
+      text =
+        `**直接回答**：当前 **${ctx.label}** 的重复性 CV = **${(100 * cv).toFixed(2)}%**。\n\n` +
+        "含义：多帧 Andreas–Misak γ 的相对分散度。" +
+        "CV 大 → 截帧时刻/气流/轮廓波动大；CV 小 → 重复性更好。" +
+        "它**不是**与文献偏差，也**不是**扩展不确定度 U。";
+      if (pst.poly_median != null) text += `\n本批 Poly 中位 ${fmtG(pst.poly_median)} 可作对照主值。`;
+    }
+    text += "\n" + sourceFooter("software+interpretation");
+    return [text, ["现在的误差如何？", "Poly和YL该信哪个？", "表面张力是多少？"]];
+  }
+
+  function polyYlGapPhysics(ctx) {
+    const pst = ctx.phys || {};
+    const lines = [
+      "**直接回答：52% 量级的大偏差，通常不是「液体真的只有一半表面张力」，而是 Poly 与 YL 两个模型读到了不同的几何。**",
+      "",
+    ];
+    if (pst.poly_median != null && pst.yl_median != null && pst.rel_yl != null) {
+      lines.push(
+        `本批数字：Poly ${fmtG(pst.poly_median)}，YL ${fmtG(pst.yl_median)}，相对差 ≈ **${Math.round(100 * pst.rel_yl)}%。**`
+      );
+      lines.push("");
+    }
+    lines.push(
+      "【物理/图像根因】",
+      "1. **Poly** 只依赖赤道直径 De 与 Ds，对「暗缘空壳」仍可能给出合理主值。",
+      "2. **YL** 最小化整条轮廓与 Young–Laplace 外形的残差；亮场透明液滴常只剩暗缘+针，拟合会漂 → γ 可差到约一半。",
+      "3. 相对差 >12% 时程序**丢弃 YL**，主值仍用 Poly；不是把文献值硬改成 Poly。",
+      "",
+      "【不要外推】这不是「测量精度只有 50%」，也不是把 bias、CV、Cred 混成一句话叫误差。"
+    );
+    lines.push(sourceFooter("interpretation+model"));
+    return [lines.join("\n"), ["滴液轮廓残差为什么大？", "Poly和YL该信哪个？", "为什么门控用12%？"]];
+  }
+
+  function residualWhy(ctx) {
+    const pst = ctx.phys || {};
+    let text =
+      "**直接回答：轮廓残差大，多半是「图像轮廓 ≠ 真实轴对称准静态外形」，不是公式随便写错一个系数。**\n\n" +
+      "【图像层】\n" +
+      "- 亮场透明：分割常得到**空心暗缘**或双层边\n" +
+      "- 针杆连入轮廓：颈部/底部几何被污染\n" +
+      "- 模糊、离焦、运动模糊：边缘抖动\n" +
+      "- 非准静态/脱落：不满足静平衡假设，残差必然大\n\n" +
+      "【物理层】\n" +
+      "- YL 用理论子午线硬贴观测轮廓；轮廓坏了 → 残差↑、γ 漂\n" +
+      "- Poly 不走全轮廓残差最小化，所以常出现「Poly 仍稳、YL 残差很大」\n\n";
+    if (pst.rel_yl != null && pst.rel_yl > 0.12) {
+      text +=
+        `本批 Poly–YL 相对差约 **${Math.round(100 * pst.rel_yl)}%**，与「YL 轮廓贴合很差」一致；主值应信 Poly。\n`;
+    }
+    text +=
+      `当前 **${ctx.label}**：usable ${ctx.n_usable}/${ctx.n}。残差问题靠改成像与轮廓，不是放宽门控凑 usable。\n` +
+      sourceFooter("interpretation+model");
+    return [text, ["为什么偏差这么大？", "Poly和YL该信哪个？", "轮廓门控过了吗？"]];
+  }
+
+  function threshold12Explain() {
+    const text =
+      "**直接回答：约 12% 是 Poly 与 YL 的一致性门控，不是轮廓 solidity 门槛。**\n\n" +
+      "【它管什么】比较 Andreas–Misak γ 与 Young–Laplace γ：" +
+      "若相对差超过约 **12%**，判 YL 失败，**主值回退 Poly**。\n\n" +
+      "【为什么是经验 12%】亮场空心下 YL 常出现 30%～50%+ 相对差；需要可答辩硬规则，避免两数平均。" +
+      "12% 是**历史经验/可调工程阈值**，不是物理常数。\n\n" +
+      "【别和轮廓门控混淆】usable 看的是 solidity≥0.82、fill_ratio≥0.85 等，是另一道门。\n" +
+      sourceFooter("interpretation+model");
+    return [text, ["Poly和YL该信哪个？", "轮廓门控过了吗？", "滴液轮廓残差为什么大？"]];
+  }
+
+  function trustWhich(ctx) {
+    const pst = ctx.phys || {};
+    const lines = ["**结论先说：主结果信 Andreas–Misak（Poly）；YL 只作校验，失败就丢掉，不要平均。**", ""];
+    if (pst.poly_median != null) lines.push(`- 本批建议采信的主值：**${fmtG(pst.poly_median)}**（Poly 中位）`);
+    if (pst.yl_median != null) {
+      lines.push(
+        `- YL 中位：${fmtG(pst.yl_median)}` +
+          (pst.rel_yl != null ? `（相对差 ${Math.round(100 * pst.rel_yl)}%）` : "")
+      );
+    }
+    if (pst.rel_yl != null && pst.rel_yl > 0.12) {
+      lines.push("- 决策：相对差 >12% → **明确不信 YL**，报告写 Poly。");
+    } else if (pst.rel_yl != null) {
+      lines.push("- 决策：相对差未过 12% → YL 可作交叉参考，主值仍以 Poly 写报告。");
+    } else {
+      lines.push("- 决策：缺 YL 回传时，只信已回传的 Poly；不要用 AI「猜」折中值。");
+    }
+    lines.push(
+      "",
+      "【现象】两数差很大。",
+      "【原因】YL 吃全轮廓，亮场空壳+针时外形漂；Poly 只吃 De/Ds，更稳。",
+      "【风险】信 YL 或平均 → 绝对值可错到约一半。",
+      "【建议】信 Poly；改善背光/分割/只选准静态 usable 帧。"
+    );
+    if (ctx.n_usable === 0) {
+      lines.push(
+        "\n另：usable=0 仍看到的 γ 多为**离线物理复算**，不是助手门控放行主结果；报告必须分开写。"
+      );
+    }
+    lines.push(sourceFooter("interpretation"));
+    return [lines.join("\n"), ["为什么偏差这么大？", "usable=0该信哪个？", "表面张力是多少？"]];
+  }
+
+  function scaleWhatIf() {
+    const text =
+      "**直接回答（模型推演，不是本批新算的 γ）：**\n\n" +
+      "量级上 **γ ∝ Δρ · g · (De_物理)²**，De_物理 = De_像素 × px2mm，故 **γ ∝ (px2mm)²**。\n\n" +
+      "- 尺子偏大 **x%** → γ 大约偏大 **≈2x%**\n" +
+      "- 尺子偏小 8% → γ 大约偏低约 **16%**\n" +
+      "- 尺子标成约 2 倍 → γ 可到约 **4 倍**（如冲到 270+）\n\n" +
+      "这是尺度误差传播；**我不会因此改写你当前批次的已算 γ**。要核对本批尺子，请问「标定尺度对不对」。\n" +
+      sourceFooter("model");
+    return [text, ["标定尺度对不对？", "现在的误差如何？", "表面张力是多少？"]];
+  }
+
+  function isExternalPropertyQ(q) {
+    if (["理论值", "标准值", "文献值", "手册", "公开物性", "物性常数", "标准表面张力"].some((k) => q.includes(k))) return true;
+    if (/(纯水|水|乙醇|酒精|盐水).{0,12}(理论|标准|文献)/.test(q)) return true;
+    if (/(理论|标准|文献).{0,12}(纯水|表面张力)/.test(q)) return true;
+    return false;
+  }
+
+  function externalProperty(q, ctx) {
+    const wantWater = ["纯水", "水", "water"].some((k) => q.toLowerCase().includes(k.toLowerCase()) || q.includes(k)) &&
+      !q.includes("盐水") && !q.includes("乙醇") && !q.includes("酒精");
+    const wantEtoh = ["乙醇", "酒精", "ethanol"].some((k) => q.toLowerCase().includes(k) || q.includes(k));
+    const wantSaline = ["盐水", "生理盐水", "saline"].some((k) => q.toLowerCase().includes(k) || q.includes(k));
+    const t25 = q.includes("25");
+    const t30 = q.includes("30");
+    const lines = [
+      "**这是外部公开物性/常用参考值查询，不是当前打开样品的测量结果。**",
+      `（你左侧当前批次是 **${ctx.label}**，下面数字**不会**自动替换成该批 Poly。）`,
+      "",
+    ];
+    if (wantWater && t25) lines.push("**直接回答：25°C 纯水表面张力理论/手册常用参考约 72.0 mN/m（量级；精确值随文献略有出入）。**");
+    else if (wantWater && t30) lines.push("**直接回答：30°C 纯水常用参考约 71.2 mN/m 量级（温度升高，γ 下降）。**");
+    else if (wantWater) lines.push("**直接回答：纯水表面张力随温度升高而下降；20°C 常用约 72.8 mN/m，25°C 约 72.0，30°C 约 71.2。**");
+    else if (wantEtoh) lines.push("**直接回答：本作品乙醇水溶液定稿对照 γ = 25.03 mN/m（报告口径）。** 任意浓度请查专用物性表。");
+    else if (wantSaline) lines.push("**直接回答：本作品生理盐水定稿对照 γ = 72.21 mN/m。** usable=0 时若来自离线复算，报告必须写明。");
+    else lines.push("**直接回答：我可以给出常用参考量级，但不能把「当前样品测量值」说成理论值。**");
+    lines.push(
+      "\n常用对照表：",
+      "- 纯水 · 20°C：约 **72.8** mN/m",
+      "- 纯水 · 25°C：约 **72.0** mN/m",
+      "- 纯水 · 30°C：约 **71.2** mN/m",
+      "- 乙醇水溶液（作品定稿）：**25.03** mN/m",
+      "- 生理盐水（作品定稿）：**72.21** mN/m",
+      "\n若要本批**软件已算**的 Poly/YL，请明确问「这一批表面张力是多少」或「YL 数值是多少」。",
+      sourceFooter("external")
+    );
+    return [lines.join("\n"), ["这一批表面张力是多少？", "报告里的标准结果是多少？", "现在的误差如何？"]];
+  }
+
+  function usable0Trust(ctx) {
+    const g = ctx.phys && ctx.phys.poly_median;
+    const lines = [
+      "**结论：usable=0 时，不要把界面/报告里的 γ 当成「助手已放行的主结果」。**",
+      "",
+      "【决策逻辑】",
+      "1. **usable**：AI 轮廓/状态门控是否允许进入正式物理链路。usable=0 = 门控全部否决。",
+      "2. **仍出现的 γ**：通常来自 MATLAB **离线复算**（或历史定稿表），与门控放行统计不是同一可信层级。",
+      "3. **该信谁**：过程结论以门控为准；离线 γ 若引用须标注「离线重算 / 未过助手门控」。",
+      "4. **禁止**：放宽门槛凑数，或让 AI 另猜一个 γ。",
+      "",
+      `当前打开：**${ctx.label}**，usable **${ctx.n_usable}/${ctx.n}**。`,
+    ];
+    if (g != null) lines.push(`本批 JSON 中位 Poly = ${fmtG(g)}（物理回传；是否作文正式主结果取决于 usable 与报告口径）。`);
+    if (String(ctx.folder || ctx.label || "").includes("盐") || String(ctx.folder || "").toLowerCase().includes("salt")) {
+      lines.push("生理盐水定稿表常见 72.21 mN/m：若 usable=0，属于离线口径，须在报告写清。");
+    }
+    lines.push(sourceFooter("interpretation"));
+    return [lines.join("\n"), ["轮廓门控过了吗？", "Poly和YL该信哪个？", "报告里的标准结果是多少？"]];
+  }
+
+  function sourceAttribution() {
+    const text =
+      "**直接回答：可以按四类区分我说的内容来源。**\n\n" +
+      "1. **软件计算结果**：JSON/xlsx 已有数——Poly/YL 中位、CV、ylOk、usable、Cred、px2mm、最佳帧名。\n" +
+      "2. **业务解读**：如「该信 Poly」「usable=0 不能当放行主结果」「下一步先改光路」。\n" +
+      "3. **模型推演**：如 γ∝(px2mm)²、空心轮廓导致 YL 残差变大、12% 一致性门控。\n" +
+      "4. **外部公开常数/定稿表**：如 25°C 纯水约 72 mN/m、定稿 71.78/25.03/72.21；**不是**当前打开样品实时测量。\n\n" +
+      "我是规则助手，不调用大模型，也**不会**根据图像自己预测一个新的 γ。\n" +
+      sourceFooter("interpretation");
+    return [text, ["YL数值是多少？", "25°C纯水理论值是多少？", "尺子标错了γ怎么变？"]];
+  }
+
+  function capabilityBoundary() {
+    const text =
+      "我能说的内容分四类（边界是**标明来源**，不是什么都不说）：\n\n" +
+      "- **软件计算结果**：转述本批已有 γ/CV/usable/Cred；不现场重算新的 γ\n" +
+      "- **业务解读**：该信谁、风险、下一步；不编造未回传的数\n" +
+      "- **模型推演**：公式量级、误差传播、残差机理；不把推演写成「本批测得」\n" +
+      "- **外部常数**：手册/定稿参考；不用参考值冒充当前样品\n";
+    return [text, ["你刚才哪些是算出来的？", "25°C纯水理论值是多少？", "Poly和YL该信哪个？"]];
   }
 
   function scale_q(ctx) {
@@ -463,32 +691,110 @@
 
   function fallback(ctx) {
     return [
-      `我还没精确匹配到你的问法。当前是 **${ctx.label}**。\n\n可直接问：\n- 原理 / 悬滴法 / Misak / YL\n- 现在的误差如何 / 误差来源 / 不确定度\n- 数据处理 / 截帧 / MATLAB / 标定\n- 界面上 usable、Cred、γ、最佳帧是什么意思\n- 改进、答辩、报告数字、下一步；或 \`droplet_031\``,
-      ["本实验的原理是什么？", "现在的误差如何？", "数据处理怎么做？", "界面上这些数是什么意思？"],
+      `我没把握精确理解这句。当前批次是 **${ctx.label}**。\n\n` +
+        "请用更直接的问法，例如：「YL 数值是多少」「重复性 CV 是多少」" +
+        "「为什么偏差这么大」「残差为什么大」「Poly 和 YL 该信哪个」" +
+        "「25°C 纯水理论值」「尺子标错了 γ 怎么变」「哪些是模型算的、哪些是推理」。\n" +
+        "不必点菜单；把关键名词说清楚即可。",
+      ["YL数值是多少？", "重复性CV是多少？", "Poly和YL该信哪个？", "你刚才哪些是算出来的？"],
     ];
   }
 
   function bestRule(q) {
     const ql = q.toLowerCase();
+
+    if (
+      ["哪些是物理模型", "哪些是你自己", "哪些是推理", "来自模型", "来自推理", "来源区分", "哪些是计算", "哪些是解读", "哪些是算出来", "你自己推理"].some((k) => q.includes(k)) ||
+      (q.includes("哪些") && ["模型", "推理", "计算", "解读", "算出来"].some((k) => q.includes(k)))
+    ) {
+      return "source";
+    }
+    if (["能力边界", "你能回答什么类型", "四类内容", "区分软件计算"].some((k) => q.includes(k))) return "capability";
+
+    if (isExternalPropertyQ(q)) return "external";
+
+    if (
+      (ql.includes("usable") || q.includes("usable=0") || q.includes("usable＝0")) &&
+      ["该信", "信哪个", "为什么还", "还显示", "主结果"].some((k) => q.includes(k))
+    ) {
+      return "usable0";
+    }
+    if (
+      ["该信哪个", "信哪个", "采信", "该信谁", "相信哪个"].some((k) => q.includes(k)) ||
+      ((ql.includes("poly") || ql.includes("misak") || ql.includes("yl") || ql.includes("young")) && q.includes("信"))
+    ) {
+      return "trust";
+    }
+
+    if (/\bcv\b/.test(ql) || ql.includes("cv值") || (q.includes("重复性") && (ql.includes("cv") || q.includes("CV") || q.includes("分散")))) {
+      return "cv";
+    }
+    if (q.includes("重复性") && ["多少", "是多少", "现在"].some((k) => q.includes(k))) return "cv";
+
+    if (q.includes("残差")) return "residual";
+
+    if (
+      q.includes("12%") ||
+      q.includes("12 ％") ||
+      q.includes("百分之十二") ||
+      /12\s*%/.test(q) ||
+      (q.includes("阈值") && q.includes("12")) ||
+      (q.includes("门控") && q.includes("12") && q.includes("阈值"))
+    ) {
+      if (["为什么", "为何", "怎么定", "设定", "而不是"].some((k) => q.includes(k)) || q.includes("12")) {
+        return "th12";
+      }
+    }
+
+    if (
+      ["偏差高达", "相对差", "差这么多", "差一半", "为什么差", "相差", "偏差会高"].some((k) => q.includes(k)) ||
+      (q.includes("偏差") && ["为什么", "物理", "原因", "52", "50%", "一半"].some((k) => q.includes(k)))
+    ) {
+      if (!q.includes("文献") && !q.includes("标准")) return "gap";
+    }
+
+    if (
+      ["尺子标错", "标定错", "px2mm错", "尺度错"].some((k) => q.includes(k)) ||
+      ((q.includes("尺子") || q.includes("标定") || ql.includes("px2mm")) &&
+        ["怎么变", "会怎么", "如何变", "偏大", "偏小", "若"].some((k) => q.includes(k)))
+    ) {
+      return "scalewhatif";
+    }
+
+    if (
+      /(yl|young|laplace|young–laplace|young-laplace).{0,8}(数值|多少|是多少|中位)/i.test(ql) ||
+      /(数值|多少).{0,8}(yl|young|laplace)/i.test(ql) ||
+      ql.includes("young-laplace法算出来") ||
+      q.toLowerCase().includes("young–laplace法算出来")
+    ) {
+      return "yl";
+    }
+    if (ql.includes("yl") && ["多少", "数值", "中位", "算出来"].some((k) => q.includes(k))) return "yl";
+
     if (
       PIPELINE_KEYS.some((k) => q.includes(k)) ||
       (q.includes("流程") && !q.includes("下一步") && !q.includes("处理"))
     ) {
       return "workflow";
     }
-    if (/(γ|gamma|表面张力).{0,6}多少|多少.{0,4}(γ|mN)/i.test(q)) return "gamma";
+    if (/(这一批|本批|当前).{0,6}(γ|gamma|表面张力).{0,6}多少|(γ|gamma|表面张力).{0,6}多少|多少.{0,4}(γ|mN)/i.test(q)) {
+      if (!isExternalPropertyQ(q)) return "gamma";
+    }
+
     if (["原理", "悬滴法", "理论基础", "物理图像", "为什么能测"].some((k) => q.includes(k))) return "principle";
     if (["误差来源", "不确定度来源", "误差有哪些", "误差因素"].some((k) => q.includes(k))) return "errsrc";
-    if (["误差", "偏差如何", "准不准", "不确定度", "精度如何", "现在的误差"].some((k) => q.includes(k))) return "error";
+    if (["现在的误差", "误差如何", "准不准", "不确定度", "精度如何"].some((k) => q.includes(k)) && !q.includes("偏差")) {
+      return "error";
+    }
     if (["数据处理", "怎么处理", "如何处理", "处理流程", "算法流程", "分析流程"].some((k) => q.includes(k))) return "dataproc";
     if (["界面", "截图", "左侧", "这些数", "显示的是", "工作台"].some((k) => q.includes(k))) return "ui";
 
     const table = [
       [1, ["你是谁", "你做什么", "ai做什么", "你是什么"], "who"],
-      [1, ["你能回答", "能问什么", "会什么", "有哪些问题", "可以问"], "help"],
+      [1, ["你能回答", "能问什么", "会什么", "有哪些问题", "可以问", "能力边界"], "help"],
       [1, ["原理", "悬滴法", "理论基础", "物理图像"], "principle"],
       [1, ["误差来源", "误差因素", "不确定度来源"], "errsrc"],
-      [1, ["误差", "偏差", "不确定度", "准不准", "精度如何"], "error"],
+      [1, ["现在的误差", "不确定度", "准不准", "精度如何"], "error"],
       [1, ["数据处理", "怎么处理", "处理流程", "算法流程"], "dataproc"],
       [1, ["界面", "截图", "左侧指标", "这些数", "工作台", "usable是什么", "usable 是"], "ui"],
       [2, ["改进", "优化", "不足", "怎么更好", "如何提高", "精度不够", "泛化"], "improve"],
@@ -496,19 +802,19 @@
       [2, ["测不准", "为什么错", "乱跳", "偏大", "偏小", "273", "300", "失败模式"], "fail"],
       [2, ["截帧", "滴落检测", "roi", "取帧", "extract"], "extract"],
       [2, ["matlab", "物理反演", "xlsx", "批处理脚本"], "matlab"],
-      [2, ["de", "ds", "形状因子", "几何量", "赤道"], "geometry"],
-      [3, ["yl", "young", "laplace", "差这么多", "相差", "为什么差"], "yl"],
+      [2, ["形状因子", "几何量", "赤道直径"], "geometry"],
+      [3, ["yl", "young", "laplace"], "yl"],
       [3, ["misak", "andreas", "poly原理", "公式", "怎么算的", "h(s)"], "poly"],
       [3, ["大模型", "神经网络", "cnn", "深度学习", "预测γ", "ai预测"], "ailimit"],
-      [4, ["表面张力", "gamma", "γ", "主值", "poly中位"], "gamma"],
+      [4, ["这一批表面张力", "本批表面张力", "gamma", "γ", "主值", "poly中位"], "gamma"],
       [4, ["报告", "定稿", "标准结果", "71.78", "25.03", "72.21"], "report"],
-      [4, ["盐水", "生理盐水", "usable=0", "离线重算"], "saline"],
+      [4, ["离线重算"], "saline"],
       [4, ["usable", "可用帧"], "usable"],
-      [5, ["标定", "尺度", "px2mm", "针径", "尺子"], "scale"],
+      [5, ["标定", "尺度", "px2mm", "针径"], "scale"],
       [5, ["17g", "针头", "硬件", "成本", "器材", "1634"], "hardware"],
-      [5, ["温度", "25度", "30度", "25°", "30°", "升温"], "temp"],
+      [5, ["温度对比", "25度", "30度", "25°", "30°", "升温"], "temp"],
       [6, ["可信度", "cred", "靠谱", "准确度"], "cred"],
-      [6, ["轮廓", "门控", "拦住", "否决", "不能用", "异常帧"], "contour"],
+      [6, ["轮廓", "拦住", "否决", "不能用", "异常帧"], "contour"],
       [7, ["准静态", "生长阶段", "脱落", "状态分布"], "states"],
       [8, ["下一步", "怎么办", "建议我", "检查清单", "接下来"], "advice"],
       [9, ["怎么样", "这次结果", "概况", "总结一下"], "overview"],
@@ -523,7 +829,7 @@
       if (hit) rules.push([hit, -pri, fn]);
     });
     if (!rules.length) return null;
-    rules.sort((a, b) => (b[0] - a[0]) || (b[1] - a[1]));
+    rules.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
     return rules[0][2];
   }
 
@@ -534,10 +840,14 @@
     ailimit: aiLimit, saline: salineNote, principle, dataproc: dataProcessing, errsrc: errorSources,
     error: errorAnalysis, ui: uiHelp, geometry: geometryQ, extract: extractQ, matlab: matlabQ,
     usable: usableMeaning,
+    cv: cv_value, residual: residualWhy, gap: polyYlGapPhysics, th12: threshold12Explain,
+    trust: trustWhich, scalewhatif: scaleWhatIf, usable0: usable0Trust,
+    source: sourceAttribution, capability: capabilityBoundary,
   };
   const NO_CTX = new Set([
     "who", "hardware", "report", "defense", "poly", "ailimit",
     "principle", "dataproc", "errsrc", "geometry", "extract", "matlab",
+    "th12", "scalewhatif", "source", "capability",
   ]);
 
   function reply(message, ctx) {
@@ -547,12 +857,16 @@
       return { text, suggestions };
     }
     const fn = bestRule(q);
+    if (fn === "external") {
+      const [text, suggestions] = externalProperty(q, ctx);
+      return { text, suggestions };
+    }
     if (fn === "workflow" || NO_CTX.has(fn)) {
       const [text, suggestions] = FNS[fn](ctx);
       return { text, suggestions };
     }
     const fr = findFrame(ctx, q);
-    if (fr) {
+    if (fr && !["yl", "cv", "trust", "residual", "gap", "usable0"].includes(fn)) {
       const [text, suggestions] = frameTalk(ctx, fr);
       return { text, suggestions, frame: fname(fr.path) };
     }
@@ -564,5 +878,5 @@
     return { text, suggestions };
   }
 
-  global.XuandiAgent = { reply, setKnowledge };
+  global.XuandiAgent = { reply, setKnowledge, bestRule };
 })(window);
