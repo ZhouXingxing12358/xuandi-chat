@@ -1,5 +1,13 @@
 "use strict";
 
+/** Bust GitHub Pages / browser cache when batch JSON or UI changes. */
+const ASSET_V = "20260814c";
+const withV = (url) => {
+  const u = String(url || "");
+  if (!u || u.startsWith("blob:") || u.startsWith("data:")) return u;
+  return u + (u.includes("?") ? "&" : "?") + "v=" + ASSET_V;
+};
+
 const DEMO_EXPERIMENT = Object.freeze({
   name: "去离子水 · 25.1 ℃（演示）",
   surfaceTension: "71.96",
@@ -95,13 +103,13 @@ async function init() {
   cacheElements();
   bindEvents();
   try {
-    const kb = await fetch("./knowledge.json").then((r) => r.json());
+    const kb = await fetch(withV("./knowledge.json")).then((r) => r.json());
     if (window.XuandiAgent && window.XuandiAgent.setKnowledge) {
       window.XuandiAgent.setKnowledge(kb);
     }
   } catch (_) { /* optional */ }
 
-  const meta = await fetch("./data/experiments.json").then((r) => r.json());
+  const meta = await fetch(withV("./data/experiments.json")).then((r) => r.json());
   state.catalog = meta.items || [];
   state.shareUrl = meta.public
     ? String(meta.public).replace(/\/?$/, "/")
@@ -218,11 +226,11 @@ function renderHistory() {
 async function loadRealBatch(id, opts) {
   const item = state.catalog.find((x) => x.id === id);
   if (!item) return;
-  const ctx = await fetch(item.data).then((r) => r.json());
+  const ctx = await fetch(withV(item.data)).then((r) => r.json());
   state.mode = "real";
   state.currentId = id;
   state.currentCtx = ctx;
-  state.bestImageUrl = item.best_image || "";
+  state.bestImageUrl = item.best_image ? withV(item.best_image) : "";
   state.localImage = null;
   if (state.localImageUrl) {
     URL.revokeObjectURL(state.localImageUrl);
