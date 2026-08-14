@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "id": "water_vedio/25",
+      "label": "纯水 · 25°C",
+      "n_images": 53,
+      "has_physics": true,
+      "data": "./data/water_vedio__25.json",
+      "best_image": "./img/water_vedio__25__droplet_015_t0185.27s_drop0186.27s.png"
+    },
+    {
+      "id": "water_vedio/30",
+      "label": "纯水 · 30°C",
+      "n_images": 57,
+      "has_physics": false,
+      "data": "./data/water_vedio__30.json",
+      "best_image": "./img/water_vedio__30__droplet_057_t0615.47s_drop0616.47s.png"
+    },
+    {
+      "id": "alcohol_vedio/25",
+      "label": "乙醇水溶液 · 25°C",
+      "n_images": 32,
+      "has_physics": true,
+      "data": "./data/alcohol_vedio__25.json",
+      "best_image": "./img/alcohol_vedio__25__droplet_024_t0444.93s_drop0445.93s.png"
+    },
+    {
+      "id": "alcohol_vedio/30",
+      "label": "乙醇水溶液 · 30°C",
+      "n_images": 33,
+      "has_physics": true,
+      "data": "./data/alcohol_vedio__30.json",
+      "best_image": "./img/alcohol_vedio__30__droplet_031_t0564.73s_drop0565.73s.png"
+    },
+    {
+      "id": "salt_vedio/30",
+      "label": "生理盐水 · 30°C",
+      "n_images": 49,
+      "has_physics": true,
+      "data": "./data/salt_vedio__30.json",
+      "best_image": "./img/salt_vedio__30__droplet_001_t0040.13s_drop0041.13s.png"
+    }
+  ],
+  "public": "",
+  "note": "部署到 GitHub Pages 后地址自动为当前站点；自定义域名可在此填 https://xuandi-chat.ai"
+}

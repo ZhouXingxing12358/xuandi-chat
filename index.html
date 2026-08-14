@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>悬滴助手 · Pendant Drop Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="scene" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 36 36" width="28" height="28">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#5aa0ff"/>
+              <stop offset="100%" stop-color="#2878e6"/>
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="32" height="32" rx="10" fill="url(#g)"/>
+          <path d="M18 8c0 0-7 8.5-7 13a7 7 0 0014 0C25 16.5 18 8 18 8z" fill="#fff" opacity=".95"/>
+        </svg>
+      </span>
+      <div>
+        <strong>悬滴助手</strong>
+        <small>Pendant Drop · Visual Gate</small>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#workspace" class="active">工作台</a>
+      <a href="#metrics">指标</a>
+      <button type="button" id="copy-lan" class="ghost-btn">分享</button>
+    </nav>
+  </header>
+
+  <main class="shell" id="workspace">
+    <section class="hero-strip">
+      <div>
+        <p class="eyebrow">Scientific Experiment Assistant</p>
+        <h1 id="title">悬滴实验工作台</h1>
+        <p id="subtitle" class="lede">选择批次 · 查询门控与 γ · 获取下一步操作建议</p>
+      </div>
+      <div class="status-pill" id="status-bar">
+        <span><i class="dot ok"></i>助手就绪</span>
+        <span>管道 · 规则引擎</span>
+        <span id="status-mode">离线查询</span>
+        <span id="status">读取中…</span>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <aside class="panel glass" id="metrics">
+        <div class="panel-head">
+          <h2>实验批次</h2>
+          <span class="badge">CORE</span>
+        </div>
+        <label class="field">
+          <span>液体 × 温度</span>
+          <select id="exp"></select>
+        </label>
+
+        <div class="metric-grid">
+          <div class="metric">
+            <span>usable</span>
+            <strong id="m-usable">—</strong>
+          </div>
+          <div class="metric">
+            <span>可信度</span>
+            <strong id="m-cred">—</strong>
+          </div>
+          <div class="metric wide">
+            <span>γ（Andreas–Misak）</span>
+            <strong id="m-gamma">—</strong>
+          </div>
+        </div>
+
+        <div class="thumb-card">
+          <div class="thumb-label">最佳评分帧</div>
+          <img id="thumb" alt="最佳评分帧预览" hidden />
+          <p id="thumb-cap" class="thumb-cap">尚未载入</p>
+        </div>
+
+        <p class="disclaimer">AI 只做观察、选帧与门控，不预测表面张力。主值由 Andreas–Misak 计算，Young–Laplace 仅校验。</p>
+
+        <div class="share" id="share" hidden>
+          <span>访问地址</span>
+          <code id="url-lan"></code>
+        </div>
+      </aside>
+
+      <section class="chat glass">
+        <div class="chat-head">
+          <div>
+            <h2>对话查询</h2>
+            <p>可问整套实验流程，或这一批的轮廓 / γ / 下一步</p>
+          </div>
+          <div class="pipeline-mini" aria-hidden="true">
+            <span>感知</span>
+            <i></i>
+            <span>门控</span>
+            <i></i>
+            <span>反馈</span>
+          </div>
+        </div>
+
+        <div id="log" class="log" aria-live="polite"></div>
+
+        <div class="composer-wrap">
+          <div class="chips" id="chips"></div>
+          <form id="form" class="composer" autocomplete="off">
+            <input id="q" type="text" placeholder="例如：整个实验流程是怎样的？这次结果怎么样？" />
+            <button type="submit" class="send">发送</button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./agent.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
