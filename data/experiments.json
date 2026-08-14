@@ -11,8 +11,8 @@
     {
       "id": "water_vedio/30",
       "label": "纯水 · 30°C",
-      "n_images": 57,
-      "has_physics": false,
+      "n_images": 53,
+      "has_physics": true,
       "data": "./data/water_vedio__30.json",
       "best_image": "./img/water_vedio__30__droplet_001_t0022.53s_drop0023.53s.png"
     },
@@ -41,6 +41,7 @@
       "best_image": "./img/salt_vedio__30__droplet_001_t0040.13s_drop0041.13s.png"
     }
   ],
-  "public": "",
-  "note": "部署到 GitHub Pages 后地址自动为当前站点；自定义域名可在此填 https://xuandi-chat.ai"
+  "public": "https://ZhouXingxing12358.github.io/xuandi-chat/",
+  "data_root": "E:\\十二届全国大学生物理实验竞赛",
+  "note": "批次数据来自竞赛定稿目录；前端为悬滴法AI助手三栏工作台。"
 }
