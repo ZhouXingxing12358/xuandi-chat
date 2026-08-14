@@ -1,6 +1,6 @@
-悬滴助手静态站
-1) 用 GitHub Desktop / 网页 新建仓库，把本目录全部文件上传
-2) GitHub → Settings → Pages → Source: Deploy from branch → main / root
-3) 得到固定地址: https://你的用户名.github.io/仓库名/
-4) 若已有域名 xuandi-chat.ai：Pages → Custom domain 填入，DNS 加 CNAME
-也可拖到 Cloudflare Pages 得到 *.pages.dev 固定地址。
+悬滴法AI助手静态站（交接包三栏 UI + 真实批次规则引擎）
+前端源码：ai_chat/static_host/（index.html / style.css / app.js / agent.js）
+构建：python ai_chat/build_static_site.py → 本目录
+口径：γ=Andreas–Misak(Poly)中位；YL仅校验；AI不算γ
+部署：推送到 GitHub Pages 仓库 xuandi-chat
+地址示例：https://ZhouXingxing12358.github.io/xuandi-chat/

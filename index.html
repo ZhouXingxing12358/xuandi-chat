@@ -1,125 +1,254 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>悬滴助手 · Pendant Drop Lab</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="悬滴法AI助手——基于视觉门控与物理模型的表面张力实验助手。">
+  <title>悬滴法AI助手</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div class="scene" aria-hidden="true"></div>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
 
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">
-        <svg viewBox="0 0 36 36" width="28" height="28">
-          <defs>
-            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#5aa0ff"/>
-              <stop offset="100%" stop-color="#2878e6"/>
-            </linearGradient>
-          </defs>
-          <rect x="2" y="2" width="32" height="32" rx="10" fill="url(#g)"/>
-          <path d="M18 8c0 0-7 8.5-7 13a7 7 0 0014 0C25 16.5 18 8 18 8z" fill="#fff" opacity=".95"/>
-        </svg>
-      </span>
-      <div>
-        <strong>悬滴助手</strong>
-        <small>Pendant Drop · Visual Gate</small>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="悬滴法AI助手">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span class="brand-copy">
+          <strong>悬滴法AI助手</strong>
+          <small>Pendant Drop · Visual Gate</small>
+        </span>
       </div>
-    </div>
-    <nav class="nav">
-      <a href="#workspace" class="active">工作台</a>
-      <a href="#metrics">指标</a>
-      <button type="button" id="copy-lan" class="ghost-btn">分享</button>
-    </nav>
-  </header>
 
-  <main class="shell" id="workspace">
-    <section class="hero-strip">
-      <div>
-        <p class="eyebrow">Scientific Experiment Assistant</p>
-        <h1 id="title">悬滴实验工作台</h1>
-        <p id="subtitle" class="lede">选择批次 · 查询门控与 γ · 获取下一步操作建议</p>
+      <div class="topbar-context" aria-label="当前实验状态">
+        <span class="context-label">CURRENT EXPERIMENT</span>
+        <span class="state-indicator" id="top-state-indicator">
+          <span class="state-dot" aria-hidden="true"></span>
+          <span id="top-state-text">加载中…</span>
+        </span>
       </div>
-      <div class="status-pill" id="status-bar">
-        <span><i class="dot ok"></i>助手就绪</span>
-        <span>管道 · 规则引擎</span>
-        <span id="status-mode">离线查询</span>
-        <span id="status">读取中…</span>
+
+      <div class="topbar-actions">
+        <button type="button" class="prototype-badge" id="copy-share" title="复制本站地址">分享</button>
       </div>
-    </section>
+    </header>
 
     <div class="workspace">
-      <aside class="panel glass" id="metrics">
-        <div class="panel-head">
-          <h2>实验批次</h2>
-          <span class="badge">CORE</span>
+      <aside class="sidebar" aria-label="实验上下文与实验记录">
+        <div class="sidebar-product">
+          <span class="sidebar-product-mark" aria-hidden="true"></span>
+          <span>悬滴法AI助手</span>
         </div>
-        <label class="field">
-          <span>液体 × 温度</span>
-          <select id="exp"></select>
-        </label>
 
-        <div class="metric-grid">
-          <div class="metric">
-            <span>usable</span>
-            <strong id="m-usable">—</strong>
+        <button class="new-experiment-button" id="new-experiment-button" type="button">
+          <span aria-hidden="true">＋</span>
+          <span class="button-text">清空工作区</span>
+        </button>
+
+        <section class="sidebar-section current-context" aria-labelledby="sidebar-experiment-title">
+          <p class="sidebar-section-label">CURRENT EXPERIMENT</p>
+          <h2 id="sidebar-experiment-title">当前实验</h2>
+          <div class="sidebar-experiment" id="sidebar-experiment-card">
+            <div class="sidebar-card-head">
+              <span class="status-pulse" aria-hidden="true"></span>
+              <span id="sidebar-context-status">加载中</span>
+            </div>
+            <strong id="sidebar-experiment-name">—</strong>
+            <p id="sidebar-experiment-detail">正在读取实验目录</p>
+            <span class="sidebar-state-tag" id="sidebar-state-tag">…</span>
           </div>
-          <div class="metric">
-            <span>可信度</span>
-            <strong id="m-cred">—</strong>
-          </div>
-          <div class="metric wide">
-            <span>γ（Andreas–Misak）</span>
-            <strong id="m-gamma">—</strong>
-          </div>
-        </div>
+        </section>
 
-        <div class="thumb-card">
-          <div class="thumb-label">最佳评分帧</div>
-          <img id="thumb" alt="最佳评分帧预览" hidden />
-          <p id="thumb-cap" class="thumb-cap">尚未载入</p>
-        </div>
+        <section class="sidebar-section history-section" aria-labelledby="history-title">
+          <p class="sidebar-section-label">EXPERIMENT BATCHES</p>
+          <h2 id="history-title">实验批次</h2>
+          <div class="history-list" id="history-list" aria-label="真实实验批次"></div>
+          <p class="history-note">默认载入真实批次；也可用下方「载入演示实验」查看界面示意。</p>
+        </section>
 
-        <p class="disclaimer">AI 只做观察、选帧与门控，不预测表面张力。主值由 Andreas–Misak 计算，Young–Laplace 仅校验。</p>
-
-        <div class="share" id="share" hidden>
-          <span>访问地址</span>
-          <code id="url-lan"></code>
-        </div>
+        <button class="sidebar-help-button" id="help-button" type="button" aria-label="查看说明与帮助">
+          <span aria-hidden="true">?</span>
+          <span><strong>说明与帮助</strong><small>口径与使用边界</small></span>
+        </button>
       </aside>
 
-      <section class="chat glass">
-        <div class="chat-head">
-          <div>
-            <h2>对话查询</h2>
-            <p>可问整套实验流程，或这一批的轮廓 / γ / 下一步</p>
-          </div>
-          <div class="pipeline-mini" aria-hidden="true">
-            <span>感知</span>
-            <i></i>
-            <span>门控</span>
-            <i></i>
-            <span>反馈</span>
-          </div>
-        </div>
+      <main class="main-content" id="main-content">
+        <section class="assistant-workspace" id="module-assistant" data-experiment-state="empty" aria-label="AI 助手与当前实验工作区">
+          <section class="chat-panel" aria-labelledby="chat-title">
+            <header class="panel-header chat-header">
+              <div>
+                <p class="eyebrow"><span></span> AI WORKSPACE</p>
+                <h1 id="chat-title">实验对话</h1>
+              </div>
+              <span class="assistant-status" id="assistant-status"><span aria-hidden="true"></span>规则引擎</span>
+            </header>
 
-        <div id="log" class="log" aria-live="polite"></div>
+            <div class="chat-scroll" id="chat-scroll">
+              <section class="welcome-block" id="welcome-block">
+                <div class="welcome-symbol" aria-hidden="true">
+                  <span class="drop-core"></span>
+                  <span class="orbit orbit-one"></span>
+                  <span class="orbit orbit-two"></span>
+                </div>
+                <p class="welcome-kicker">悬滴法AI助手</p>
+                <h2>准备开始一次悬滴实验</h2>
+                <p>左侧切换真实批次，或载入演示实验；可问原理、误差、数据处理与当前指标含义。</p>
+              </section>
 
-        <div class="composer-wrap">
-          <div class="chips" id="chips"></div>
-          <form id="form" class="composer" autocomplete="off">
-            <input id="q" type="text" placeholder="例如：整个实验流程是怎样的？这次结果怎么样？" />
-            <button type="submit" class="send">发送</button>
-          </form>
-        </div>
-      </section>
+              <div class="message-list" id="message-list" aria-live="polite" aria-label="对话记录"></div>
+
+              <section class="suggestion-section" id="suggestion-section" aria-labelledby="suggestion-title">
+                <div class="section-label-row">
+                  <h2 id="suggestion-title">快捷问题</h2>
+                  <span id="suggestion-mode-tag">当批规则检索</span>
+                </div>
+                <div class="suggestion-grid" id="suggestion-grid"></div>
+              </section>
+            </div>
+
+            <footer class="composer-area">
+              <div class="quick-actions">
+                <input id="image-input" type="file" accept="image/*" hidden>
+                <button class="secondary-action" id="upload-button" type="button">
+                  <span class="action-symbol" aria-hidden="true">＋</span>
+                  上传液滴图片
+                </button>
+                <button class="secondary-action demo-action" id="load-demo-button" type="button">
+                  <span class="action-symbol demo-symbol" aria-hidden="true"></span>
+                  载入演示实验
+                </button>
+              </div>
+              <div class="composer">
+                <label class="sr-only" for="message-input">向悬滴法AI助手输入问题</label>
+                <textarea id="message-input" rows="1" maxlength="800" placeholder="询问原理、误差、数据处理，或当前批次指标…"></textarea>
+                <button class="send-button" id="send-button" type="button" aria-label="发送消息">
+                  <span>发送</span><span aria-hidden="true">↗</span>
+                </button>
+              </div>
+              <p class="composer-note">规则检索当批实验 JSON 与知识库；不调用大模型预测 γ。主值来自 Andreas–Misak（Poly），YL 仅校验。</p>
+            </footer>
+          </section>
+
+          <section class="experiment-panel" aria-labelledby="experiment-title">
+            <header class="panel-header experiment-header">
+              <div>
+                <p class="eyebrow"><span></span> LAB CONSOLE</p>
+                <h2 id="experiment-title">当前实验工作区</h2>
+              </div>
+              <div class="experiment-header-actions">
+                <span class="experiment-mode-badge" id="experiment-mode-badge">加载中</span>
+                <button class="text-button" id="clear-experiment-button" type="button" hidden>清除</button>
+              </div>
+            </header>
+
+            <div class="experiment-scroll">
+              <section class="visual-section" aria-labelledby="visual-title">
+                <div class="visual-meta">
+                  <div>
+                    <span class="visual-label">LIVE VIEW</span>
+                    <h3 id="visual-title">液滴主视图</h3>
+                  </div>
+                  <span class="canvas-status" id="canvas-status">等待输入</span>
+                </div>
+                <div class="canvas-frame" id="canvas-frame">
+                  <canvas id="experiment-canvas" width="900" height="560" role="img" aria-label="液滴主视图"></canvas>
+                  <div class="canvas-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+                  <span class="demo-watermark" id="demo-watermark" hidden>DEMO DATA</span>
+                  <span class="local-watermark" id="local-watermark" hidden>LOCAL PREVIEW · 未分析</span>
+                </div>
+                <div class="view-tabs" role="tablist" aria-label="实验图像视图">
+                  <button type="button" role="tab" aria-selected="true" class="view-tab is-active" data-view="original">原图</button>
+                  <button type="button" role="tab" aria-selected="false" class="view-tab" data-view="contour">轮廓</button>
+                  <button type="button" role="tab" aria-selected="false" class="view-tab" data-view="fit">Poly / YL</button>
+                  <button type="button" role="tab" aria-selected="false" class="view-tab" data-view="residual">残差</button>
+                </div>
+                <p class="visual-caption" id="visual-caption">选择批次后显示最佳评分帧预览。</p>
+              </section>
+
+              <section class="results-section" aria-labelledby="results-title">
+                <div class="section-label-row result-heading">
+                  <h3 id="results-title">实验结果</h3>
+                  <span id="results-data-tag">暂无数据</span>
+                </div>
+
+                <div class="result-layout">
+                  <article class="primary-result">
+                    <div class="result-topline">
+                      <span>核心物理结果</span>
+                      <span class="result-demo-tag" id="primary-demo-tag" hidden>演示数据</span>
+                    </div>
+                    <p>表面张力 γ</p>
+                    <div class="primary-value-row">
+                      <strong id="surface-tension-value">--</strong>
+                      <span id="surface-tension-unit">mN/m</span>
+                    </div>
+                    <small id="surface-tension-note">Andreas–Misak（Poly）中位；YL 仅校验</small>
+                  </article>
+
+                  <div class="quality-grid">
+                    <article class="quality-item">
+                      <span>过程可信度 Cred</span>
+                      <strong id="confidence-value">--</strong>
+                      <small>非测量准确度</small>
+                    </article>
+                    <article class="quality-item">
+                      <span>可用帧 usable</span>
+                      <strong id="residual-value">--</strong>
+                      <small>门控放行 / 候选</small>
+                    </article>
+                    <article class="quality-item">
+                      <span>轴对称性</span>
+                      <strong id="symmetry-value">--</strong>
+                      <small>最佳帧评分项</small>
+                    </article>
+                    <article class="quality-item">
+                      <span>轮廓质量</span>
+                      <strong id="image-quality-value">--</strong>
+                      <small>最佳帧轮廓分</small>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="parameters-section" aria-labelledby="parameters-title">
+                <div class="section-label-row">
+                  <h3 id="parameters-title">实验参数</h3>
+                  <span id="parameters-data-tag">等待实验</span>
+                </div>
+                <dl class="parameter-list">
+                  <div><dt>液体</dt><dd id="liquid-value">--</dd></div>
+                  <div><dt>温度</dt><dd id="temperature-value">--</dd></div>
+                  <div><dt>相对偏差</dt><dd id="density-value">--</dd></div>
+                  <div><dt>尺度 px2mm</dt><dd id="scale-value">--</dd></div>
+                </dl>
+              </section>
+            </div>
+          </section>
+        </section>
+      </main>
     </div>
-  </main>
+  </div>
+
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow"><span></span> GUIDE</p>
+        <h2 id="help-title">关于悬滴法AI助手</h2>
+      </div>
+      <button class="dialog-close" id="help-close-button" type="button" aria-label="关闭帮助">×</button>
+    </div>
+    <div class="dialog-content">
+      <p class="dialog-lead">本站把真实实验批次、规则对话与实验工作台放在一起：AI 解释过程与指标，表面张力主值来自物理模型回传。</p>
+      <div class="help-grid">
+        <article><span>01</span><strong>Poly 出主值</strong><p>Andreas–Misak（程序称 Poly）多帧中位数为报告主值；Young–Laplace 只做校验，超差则丢弃，不平均。</p></article>
+        <article><span>02</span><strong>AI 不算 γ</strong><p>对话检索当批 JSON 与知识库，做选帧/门控解释与误差分析，不编造表面张力。</p></article>
+        <article><span>03</span><strong>演示与真实分开</strong><p>「载入演示实验」带 DEMO 水印；真实批次来自水/乙醇/盐水目录，不会标成演示数据。</p></article>
+      </div>
+      <div class="scope-note"><strong>Cred ≠ 准确度：</strong>过程可信度反映稳、廓、尺度等加权质量，勿与文献偏差或不确定度 U 混称。</div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script src="./agent.js"></script>
   <script src="./app.js"></script>
