@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="悬滴法AI助手——基于视觉门控与物理模型的表面张力实验助手。">
   <title>悬滴法AI助手</title>
-  <link rel="stylesheet" href="./style.css?v=20260814d">
+  <link rel="stylesheet" href="./style.css?v=20260815a">
 </head>
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -109,9 +109,14 @@
             <footer class="composer-area">
               <div class="quick-actions">
                 <input id="image-input" type="file" accept="image/*" hidden>
+                <input id="video-input" type="file" accept="video/*,.avi,.mp4,.mov" hidden>
                 <button class="secondary-action" id="upload-button" type="button">
                   <span class="action-symbol" aria-hidden="true">＋</span>
                   上传液滴图片
+                </button>
+                <button class="secondary-action" id="upload-video-button" type="button">
+                  <span class="action-symbol" aria-hidden="true">▶</span>
+                  上传视频分析
                 </button>
                 <button class="secondary-action demo-action" id="load-demo-button" type="button">
                   <span class="action-symbol demo-symbol" aria-hidden="true"></span>
@@ -125,7 +130,7 @@
                   <span>发送</span><span aria-hidden="true">↗</span>
                 </button>
               </div>
-              <p class="composer-note">规则检索当批实验 JSON 与知识库；不调用大模型预测 γ。主值来自 Andreas–Misak（Poly），YL 仅校验。</p>
+              <p class="composer-note">规则检索当批 JSON；配置 <code>V2_API_BASE</code> 后可对上传图/视频做 M1/M2 真分析（γ 仍为空，待 M3）。</p>
             </footer>
           </section>
 
@@ -250,7 +255,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="./agent.js?v=20260814d"></script>
-  <script src="./app.js?v=20260814d"></script>
+  <script src="./config.js?v=20260815a"></script>
+  <script src="./agent.js?v=20260815a"></script>
+  <script src="./app.js?v=20260815a"></script>
 </body>
 </html>

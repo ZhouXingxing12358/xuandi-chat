@@ -1,12 +1,23 @@
 "use strict";
 
 /** Bust GitHub Pages / browser cache when batch JSON or UI changes. */
-const ASSET_V = "20260814d";
+const ASSET_V = "20260815a";
 const withV = (url) => {
   const u = String(url || "");
   if (!u || u.startsWith("blob:") || u.startsWith("data:")) return u;
   return u + (u.includes("?") ? "&" : "?") + "v=" + ASSET_V;
 };
+
+function resolveApiBase() {
+  const q = new URLSearchParams(location.search).get("api");
+  if (q) return String(q).replace(/\/$/, "");
+  if (window.V2_API_BASE) return String(window.V2_API_BASE).replace(/\/$/, "");
+  try {
+    const saved = localStorage.getItem("V2_API_BASE");
+    if (saved) return String(saved).replace(/\/$/, "");
+  } catch (_) { /* ignore */ }
+  return "";
+}
 
 const DEMO_EXPERIMENT = Object.freeze({
   name: "去离子水 · 25.1 ℃（演示）",
@@ -134,7 +145,7 @@ function cacheElements() {
     "sidebar-experiment-detail", "sidebar-state-tag", "sidebar-context-status",
     "new-experiment-button", "module-assistant", "chat-scroll", "welcome-block",
     "message-list", "suggestion-section", "suggestion-grid", "suggestion-mode-tag",
-    "image-input", "upload-button", "load-demo-button", "message-input", "send-button",
+    "image-input", "video-input", "upload-button", "upload-video-button", "load-demo-button", "message-input", "send-button",
     "experiment-mode-badge", "clear-experiment-button", "experiment-canvas",
     "canvas-status", "demo-watermark", "local-watermark", "visual-caption",
     "results-data-tag", "primary-demo-tag", "surface-tension-value",
@@ -167,6 +178,10 @@ function bindEvents() {
   el.newExperimentButton.addEventListener("click", clearToEmpty);
   el.clearExperimentButton.addEventListener("click", clearToEmpty);
   el.uploadButton.addEventListener("click", () => el.imageInput.click());
+  if (el.uploadVideoButton && el.videoInput) {
+    el.uploadVideoButton.addEventListener("click", () => el.videoInput.click());
+    el.videoInput.addEventListener("change", onLocalVideo);
+  }
   el.imageInput.addEventListener("change", onLocalImage);
   el.helpButton.addEventListener("click", openHelp);
   el.helpCloseButton.addEventListener("click", closeHelp);
@@ -416,6 +431,11 @@ function onLocalImage(e) {
   const file = e.target.files && e.target.files[0];
   e.target.value = "";
   if (!file) return;
+  const api = resolveApiBase();
+  if (api) {
+    analyzeLiveImage(file, api);
+    return;
+  }
   if (state.localImageUrl) URL.revokeObjectURL(state.localImageUrl);
   state.localImageUrl = URL.createObjectURL(file);
   const img = new Image();
@@ -428,7 +448,7 @@ function onLocalImage(e) {
     el.topStateText.textContent = "本地预览 · 未分析";
     el.sidebarContextStatus.textContent = "本地预览";
     el.sidebarExperimentName.textContent = file.name;
-    el.sidebarExperimentDetail.textContent = "仅浏览器预览，未跑门控或物理反演";
+    el.sidebarExperimentDetail.textContent = "仅浏览器预览；配置 V2_API_BASE 可做 M1 真分析";
     el.sidebarStateTag.textContent = "LOCAL";
     el.experimentModeBadge.textContent = "本地预览";
     el.clearExperimentButton.hidden = false;
@@ -439,7 +459,7 @@ function onLocalImage(e) {
     ["surfaceTensionValue", "confidenceValue", "residualValue", "symmetryValue", "imageQualityValue"].forEach((k) => {
       el[k].textContent = "--";
     });
-    el.surfaceTensionNote.textContent = "本地预览未计算 γ";
+    el.surfaceTensionNote.textContent = "本地预览未计算 γ（且未连 V2 API）";
     el.liquidValue.textContent = "--";
     el.temperatureValue.textContent = "--";
     el.densityValue.textContent = "--";
@@ -448,14 +468,202 @@ function onLocalImage(e) {
     el.parametersDataTag.textContent = "本地文件";
     state.messages = [];
     addBotMsg(
-      "已载入本地图片预览，**未**做轮廓门控或物理反演。请从左侧选择真实批次查询 γ 与误差。",
+      "已载入本地图片预览，**未**做轮廓分析。\n\n" +
+        "要做 M1 真分析：在 `config.js` 设置 `window.V2_API_BASE`（本机 `http://127.0.0.1:8765` 或 HF Spaces），" +
+        "或 URL 加 `?api=...`。γ 在 M3 前仍为 `--`。",
       ["本实验的原理是什么？", "数据处理怎么做？"]
     );
     updateCaption();
     drawCurrentView();
-    showToast("本地预览已载入");
+    showToast("本地预览已载入（无 API）");
   };
   img.src = state.localImageUrl;
+}
+
+async function onLocalVideo(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const api = resolveApiBase();
+  if (!api) {
+    showToast("未配置 V2_API_BASE，无法分析视频");
+    addBotMsg(
+      "视频分析需要动态后端。请设置 `window.V2_API_BASE` 或使用 `?api=` 参数指向 V2 服务（见 DEPLOY_FREE）。",
+      ["本实验的原理是什么？"]
+    );
+    return;
+  }
+  await analyzeLiveVideo(file, api);
+}
+
+async function analyzeLiveImage(file, api) {
+  if (state.busy) return;
+  state.busy = true;
+  showToast("M1 分析中…");
+  el.topStateText.textContent = "M1 分析中";
+  try {
+    const fd = new FormData();
+    fd.append("image", file, file.name);
+    const resp = await fetch(api + "/api/analyze/image", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    applyLiveImageResult(file.name, data);
+    showToast("M1 完成（γ 未计算）");
+  } catch (err) {
+    console.error(err);
+    showToast("M1 失败：后端休眠或不可达");
+    addBotMsg(
+      "无法连接 V2 API（`" + api + "`）。免费 Spaces 可能在冷启动；本机请先 `python -m backend.server`。\n" +
+        "错误：" + String(err && err.message ? err.message : err),
+      ["本实验的原理是什么？"]
+    );
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function analyzeLiveVideo(file, api) {
+  if (state.busy) return;
+  state.busy = true;
+  showToast("M2 视频分析中（可能较慢）…");
+  el.topStateText.textContent = "M2 分析中";
+  try {
+    const fd = new FormData();
+    fd.append("video", file, file.name);
+    const resp = await fetch(api + "/api/analyze/video", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    applyLiveVideoResult(file.name, data);
+    showToast("M2 完成（γ 未计算）");
+  } catch (err) {
+    console.error(err);
+    showToast("M2 失败：超时/休眠/不可达");
+    addBotMsg(
+      "视频分析失败。免费后端对长/4K 视频易超时；请缩短视频或本机运行。\nAPI=`" + api + "`\n" +
+        String(err && err.message ? err.message : err),
+      ["本实验的原理是什么？"]
+    );
+  } finally {
+    state.busy = false;
+  }
+}
+
+function applyLiveImageResult(filename, data) {
+  state.mode = "local";
+  state.currentId = "";
+  state.currentCtx = null;
+  el.moduleAssistant.dataset.experimentState = "local";
+  el.topStateText.textContent = "M1 已分析";
+  el.sidebarContextStatus.textContent = "M1 LIVE";
+  el.sidebarExperimentName.textContent = filename;
+  const det = data.detection || {};
+  const q = data.quality || {};
+  const geo = data.geometry || {};
+  const pr = data.physics_readiness || {};
+  el.sidebarExperimentDetail.textContent =
+    (det.droplet_detected ? "已检出" : "未检出") +
+    " · physics_candidate=" + Boolean(pr.candidate);
+  el.sidebarStateTag.textContent = "M1";
+  el.experimentModeBadge.textContent = "M1 LIVE · γ=null";
+  el.clearExperimentButton.hidden = false;
+  el.demoWatermark.hidden = true;
+  el.localWatermark.hidden = false;
+  el.localWatermark.textContent = "LIVE M1 · NO γ";
+  el.primaryDemoTag.hidden = true;
+  el.canvasStatus.textContent = pr.candidate ? "physics_candidate" : "非物理候选";
+  el.surfaceTensionValue.textContent = "--";
+  el.surfaceTensionNote.textContent = "M1 不计算 γ；候选仅表示几何/图像准备度 ≠ 准静态";
+  el.confidenceValue.textContent = q.overall_score != null ? String(Math.round(q.overall_score)) : "--";
+  el.residualValue.textContent = geo.contour_valid ? "轮廓有效" : "轮廓无效";
+  el.symmetryValue.textContent = q.symmetry != null ? (100 * Number(q.symmetry)).toFixed(1) + "%" : "--";
+  el.imageQualityValue.textContent = q.sharpness != null ? String(Math.round(q.sharpness)) : "--";
+  el.resultsDataTag.textContent = "M1 真分析";
+  el.parametersDataTag.textContent = "LIVE";
+  el.liquidValue.textContent = "--";
+  el.temperatureValue.textContent = "--";
+  el.densityValue.textContent = (data.anomalies && data.anomalies[0] && data.anomalies[0].message) || "无异常或见对话";
+  el.scaleValue.textContent = "gamma=null";
+
+  const vis = data.visualization || {};
+  const overlay = vis.overlay || vis.original;
+  if (overlay) {
+    loadBestImage(overlay).then(() => {
+      state.activeView = "contour";
+      syncViewTabs();
+      drawCurrentView();
+    });
+  }
+  state.messages = [];
+  addBotMsg(
+    [
+      "**M1 真分析完成**（动态后端）。",
+      `- droplet_detected: ${Boolean(det.droplet_detected)}`,
+      `- contour_valid: ${Boolean(geo.contour_valid)}`,
+      `- physics_candidate: ${Boolean(pr.candidate)}（≠ quasistatic）`,
+      `- sharpness: ${q.sharpness != null ? Number(q.sharpness).toFixed(2) : "—"}`,
+      `- **表面张力 γ：未计算（null）** — 需 M3 + 尺度/Δρ`,
+    ].join("\n"),
+    ["本实验的原理是什么？", "数据处理怎么做？"]
+  );
+  updateCaption();
+  drawCurrentView();
+}
+
+function applyLiveVideoResult(filename, data) {
+  state.mode = "local";
+  state.currentId = "";
+  state.currentCtx = null;
+  const sum = data.state_summary || {};
+  const best = data.best_candidate;
+  const counts = sum.counts || {};
+  el.moduleAssistant.dataset.experimentState = "local";
+  el.topStateText.textContent = "M2 已分析";
+  el.sidebarContextStatus.textContent = "M2 LIVE";
+  el.sidebarExperimentName.textContent = filename;
+  el.sidebarExperimentDetail.textContent =
+    `采样 ${(data.video && data.video.sampled_frame_count) || 0} · 主导 ${sum.dominant || "—"}`;
+  el.sidebarStateTag.textContent = sum.dominant || "M2";
+  el.experimentModeBadge.textContent = "M2 LIVE · γ=null";
+  el.clearExperimentButton.hidden = false;
+  el.demoWatermark.hidden = true;
+  el.localWatermark.hidden = false;
+  el.localWatermark.textContent = "LIVE M2 · NO γ";
+  el.canvasStatus.textContent = best ? `best #${best.frame_index}` : "无候选";
+  el.surfaceTensionValue.textContent = "--";
+  el.surfaceTensionNote.textContent = "M2 不计算 γ；best 为可送入 M3 的时序候选";
+  el.confidenceValue.textContent = best && best.contour_quality != null ? String(Math.round(best.contour_quality)) : "--";
+  el.residualValue.textContent = best ? "有准静态候选" : "无候选";
+  el.symmetryValue.textContent = best && best.symmetry != null ? (100 * Number(best.symmetry)).toFixed(1) + "%" : "--";
+  el.imageQualityValue.textContent = best && best.stability_score != null ? String(Math.round(best.stability_score)) : "--";
+  el.liquidValue.textContent = `准静态占比 ${((sum.quasistatic_ratio || 0) * 100).toFixed(0)}%`;
+  el.temperatureValue.textContent = Object.keys(counts).map((k) => `${k}:${counts[k]}`).join(" ") || "--";
+  el.densityValue.textContent = (data.anomalies && data.anomalies[0] && data.anomalies[0].message) || "无异常";
+  el.scaleValue.textContent = best ? `frame ${best.frame_index}` : "无 best";
+  el.resultsDataTag.textContent = "M2 真分析";
+  el.parametersDataTag.textContent = "时序摘要";
+
+  if (best && best.visualization && best.visualization.overlay) {
+    loadBestImage(best.visualization.overlay).then(() => {
+      state.activeView = "contour";
+      syncViewTabs();
+      drawCurrentView();
+    });
+  }
+  const tl = (data.timeline || []).map((r) => r.temporal_state).join(" → ");
+  state.messages = [];
+  addBotMsg(
+    [
+      "**M2 视频时序分析完成**（动态后端）。",
+      `- 状态分布：${JSON.stringify(counts)}`,
+      `- 准静态比例：${((sum.quasistatic_ratio || 0) * 100).toFixed(1)}%`,
+      `- best: ${best ? `#${best.frame_index} @ ${Number(best.timestamp_sec).toFixed(2)}s · ${best.temporal_state}` : "无"}`,
+      `- timeline（节选）：${tl.slice(0, 180)}${tl.length > 180 ? "…" : ""}`,
+      `- **表面张力 γ：未计算（null）**`,
+    ].join("\n"),
+    ["本实验的原理是什么？", "现在的误差如何？"]
+  );
+  updateCaption();
+  drawCurrentView();
 }
 
 function loadBestImage(url) {
